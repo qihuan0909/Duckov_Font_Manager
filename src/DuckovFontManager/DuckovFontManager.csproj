@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>DuckovFontManager</AssemblyName>
+    <RootNamespace>DuckovFontManager</RootNamespace>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>0.1.0</Version>
+    <DebugType>portable</DebugType>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <!-- Game assemblies: compile-time only, never copied to output. -->
+  <ItemGroup>
+    <GameRef Include="TeamSoda.Duckov.Core;TeamSoda.Duckov.Utilities;SodaLocalization;TeamSoda.MiniLocalizor;ItemStatsSystem;UniTask;Unity.TextMeshPro;Unity.InputSystem;Newtonsoft.Json;UnityEngine;UnityEngine.CoreModule;UnityEngine.UI;UnityEngine.UIModule;UnityEngine.TextRenderingModule;UnityEngine.TextCoreFontEngineModule;UnityEngine.IMGUIModule;UnityEngine.InputLegacyModule;UnityEngine.ImageConversionModule" />
+    <Reference Include="@(GameRef)">
+      <HintPath>$(DuckovManaged)\%(Identity).dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

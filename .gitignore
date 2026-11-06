@@ -1,0 +1,9 @@
+bin/
+obj/
+release/
+*.user
+.vs/
+
+# Test fonts: licences unknown, keep them out of the repository.
+customfont/*
+!customfont/.gitkeep

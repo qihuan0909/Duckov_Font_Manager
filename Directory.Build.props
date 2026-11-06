@@ -1,0 +1,7 @@
+<Project>
+  <!-- Game install path. Override with: dotnet build -p:DuckovPath="X:\...\Escape from Duckov" -->
+  <PropertyGroup>
+    <DuckovPath Condition="'$(DuckovPath)' == ''">E:\SteamLibrary\steamapps\common\Escape from Duckov</DuckovPath>
+    <DuckovManaged>$(DuckovPath)\Duckov_Data\Managed</DuckovManaged>
+  </PropertyGroup>
+</Project>
