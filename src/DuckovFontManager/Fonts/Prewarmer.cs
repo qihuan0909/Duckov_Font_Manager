@@ -14,7 +14,10 @@ namespace DuckovFontManager
     /// </summary>
     internal static class Prewarmer
     {
-        private const int CharsPerFrame = 24;
+        // Adaptive batch: aim for ~3 ms of glyph rendering per frame so it never causes visible hitches.
+        private const double TargetMs = 3.0;
+        private static int _batch = 4;
+        private static readonly System.Diagnostics.Stopwatch _watch = new System.Diagnostics.Stopwatch();
 
         private static readonly Queue<TMP_FontAsset> _queue = new Queue<TMP_FontAsset>();
         private static TMP_FontAsset _current;
@@ -44,17 +47,31 @@ namespace DuckovFontManager
                 if (_queue.Count == 0) return;
                 _current = _queue.Dequeue();
                 _chars = GetCharset();
+                // TryAddCharacters ignores TMP's missing set, so filter empty-glyph characters out here.
+                var missing = FontLibrary.GetMissingSet(_current);
+                if (missing != null && missing.Count > 0)
+                {
+                    var sb = new StringBuilder(_chars.Length);
+                    foreach (var c in _chars)
+                        if (!missing.Contains(c)) sb.Append(c);
+                    _chars = sb.ToString();
+                }
                 _pos = 0;
                 if (_current == null || string.IsNullOrEmpty(_chars)) { _current = null; return; }
             }
             if (_current == null) { _current = null; return; } // destroyed meanwhile
 
-            int len = Math.Min(CharsPerFrame, _chars.Length - _pos);
+            int len = Math.Min(_batch, _chars.Length - _pos);
             if (len > 0)
             {
+                _watch.Restart();
                 try { _current.TryAddCharacters(_chars.Substring(_pos, len)); }
                 catch (Exception e) { Log.ErrorOnce("prewarm", "Prewarm failed", e); _current = null; return; }
+                _watch.Stop();
                 _pos += len;
+                double ms = _watch.Elapsed.TotalMilliseconds;
+                if (ms < TargetMs * 0.5) _batch = Math.Min(_batch * 2, 64);
+                else if (ms > TargetMs * 1.5) _batch = Math.Max(_batch / 2, 1);
             }
             if (_pos >= _chars.Length)
             {
@@ -63,7 +80,8 @@ namespace DuckovFontManager
             }
         }
 
-        private static string GetCharset()
+        /// <summary>All characters used by the current language's localisation file (plus printable ASCII).</summary>
+        public static string GetCharset()
         {
             string lang;
             try { lang = LocalizationManager.CurrentLanguage.ToString(); }

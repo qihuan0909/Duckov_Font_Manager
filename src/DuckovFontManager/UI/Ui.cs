@@ -76,6 +76,14 @@ namespace DuckovFontManager
             return tmp;
         }
 
+        /// <summary>Shrinks a single-line label (down to 65%) when a translation is longer than the space.</summary>
+        public static void FitText(TextMeshProUGUI label, float size)
+        {
+            label.enableAutoSizing = true;
+            label.fontSizeMax = size;
+            label.fontSizeMin = Mathf.Max(10f, size * 0.65f);
+        }
+
         public static HorizontalLayoutGroup HRow(Transform parent, float height, float spacing = 8)
         {
             var rt = Rect("Row", parent);
@@ -116,6 +124,7 @@ namespace DuckovFontManager
 
             var label = Label(rt, text, fontSize, TextColor, TextAlignmentOptions.Center);
             Stretch(label.rectTransform, 10, 0, 10, 0);
+            FitText(label, fontSize);
             btn.onClick.AddListener(() =>
             {
                 try { onClick?.Invoke(); }
@@ -144,6 +153,7 @@ namespace DuckovFontManager
 
             var label = Label(row, text, 20, TextColor);
             Stretch(label.rectTransform, 38, 0, 0, 0);
+            FitText(label, 20);
 
             var toggle = row.gameObject.AddComponent<Toggle>();
             toggle.targetGraphic = boxImg;

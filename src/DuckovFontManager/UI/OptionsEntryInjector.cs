@@ -72,7 +72,7 @@ namespace DuckovFontManager
             }
             foreach (var loc in clone.GetComponentsInChildren<TextLocalizor>(true)) Object.DestroyImmediate(loc);
             var label = clone.GetComponentInChildren<TMP_Text>(true);
-            if (label != null) label.SetText(IsChinese() ? "字体" : "Fonts");
+            if (label != null) label.SetText(TabLabel());
 
             clone.AddComponent<DfmOptionsTab>();
             clone.transform.SetAsLastSibling();
@@ -81,22 +81,25 @@ namespace DuckovFontManager
             Log.Info("Added the font tab to the game's settings panel.");
         }
 
+        /// <summary>Called on language change (the TextLocalizor was removed from the cloned tab).</summary>
+        public static void RefreshLabels()
+        {
+            foreach (var g in _injected)
+            {
+                if (g == null) continue;
+                var label = g.GetComponentInChildren<TMP_Text>(true);
+                if (label != null) label.SetText(TabLabel());
+            }
+        }
+
+        private static string TabLabel() => L10n.T("tab");
+
         public static void Shutdown()
         {
             foreach (var g in _injected)
                 if (g != null) Object.Destroy(g);
             _injected.Clear();
             _failed = false;
-        }
-
-        private static bool IsChinese()
-        {
-            try
-            {
-                var l = LocalizationManager.CurrentLanguage;
-                return l == SystemLanguage.ChineseSimplified || l == SystemLanguage.ChineseTraditional || l == SystemLanguage.Chinese;
-            }
-            catch { return true; }
         }
     }
 }

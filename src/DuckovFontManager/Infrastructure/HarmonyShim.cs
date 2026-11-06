@@ -18,6 +18,7 @@ namespace DuckovFontManager
         private static Type _harmonyMethodType;
         private static MethodInfo _patch;
         private static MethodInfo _unpatchAll;
+        private static MethodInfo _unpatchSelf;
 
         public static string Description { get; private set; } = "none";
         public static bool Ready => _harmony != null;
@@ -47,6 +48,7 @@ namespace DuckovFontManager
                     .Where(m => { var p = m.GetParameters(); return p.Length >= 2 && p[0].ParameterType == typeof(MethodBase); })
                     .OrderBy(m => m.GetParameters().Length)
                     .FirstOrDefault();
+                _unpatchSelf = harmonyType.GetMethod("UnpatchSelf", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
                 _unpatchAll = harmonyType.GetMethod("UnpatchAll", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(string) }, null);
                 if (_patch == null) throw new MissingMethodException("HarmonyLib.Harmony.Patch");
 
@@ -91,10 +93,15 @@ namespace DuckovFontManager
             }
         }
 
-        public static void UnpatchAll(string id)
+        /// <summary>Removes only the patches made with our Harmony id (never other mods' patches).</summary>
+        public static void UnpatchOwn(string id)
         {
-            if (_harmony == null || _unpatchAll == null) return;
-            try { _unpatchAll.Invoke(_harmony, new object[] { id }); }
+            if (_harmony == null || string.IsNullOrEmpty(id)) return; // UnpatchAll(null) would remove ALL mods' patches
+            try
+            {
+                if (_unpatchSelf != null) _unpatchSelf.Invoke(_harmony, null);
+                else _unpatchAll?.Invoke(_harmony, new object[] { id });
+            }
             catch (Exception e) { Log.Error("Unpatch failed", e); }
         }
 

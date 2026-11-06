@@ -18,6 +18,9 @@ namespace DuckovFontManager
             catch (Exception e) { Log.ErrorOnce("hook.enable", "OnEnable hook failed", e); }
         }
 
+        // Every hook swallows its exceptions: an exception escaping a postfix would surface in the
+        // game (or another mod) code that merely set a TMP property.
+
         public static void FontPostfix(TMP_Text __instance)
         {
             if (!FontManagerCore.Active || FontApplier.Applying) return;
@@ -26,12 +29,16 @@ namespace DuckovFontManager
                 var s = TextRegistry.TryGet(__instance);
                 if (s == null) return; // captured on enable
                 var f = __instance.font;
-                if (f == null || FontLibrary.IsOurs(f) || f == s.OrigFont) return;
-                s.OrigFont = f;
-                s.OrigMat = __instance.fontSharedMaterial;
-                s.ExclusionVersion = -1;
-                FontLibrary.RegisterGameFont(f, RuleEngine.Categorize(f));
-                s.SaveToMarker();
+                if (f == null || FontLibrary.IsOurs(f)) return; // somebody explicitly chose one of our fonts
+                if (f != s.OrigFont)
+                {
+                    s.OrigFont = f;
+                    s.OrigMat = __instance.fontSharedMaterial;
+                    s.ExclusionVersion = -1;
+                    FontLibrary.RegisterGameFont(f, RuleEngine.Categorize(f));
+                    s.SaveToMarker();
+                }
+                // Also when the original font was assigned again: TMP has just reset the text to it.
                 FontApplier.Apply(s, true);
             }
             catch (Exception e) { Log.ErrorOnce("hook.font", "font hook failed", e); }
@@ -45,10 +52,14 @@ namespace DuckovFontManager
                 var s = TextRegistry.TryGet(__instance);
                 if (s == null) return;
                 var m = __instance.fontSharedMaterial;
-                if (m == null || MaterialMapper.IsOurs(m) || m == s.OrigMat) return;
+                if (m == null || MaterialMapper.IsOurs(m)) return;
                 if (s.AppliedFont != null && m == s.AppliedFont.material) return;
-                s.OrigMat = m;
-                s.SaveToMarker();
+                if (m != s.OrigMat)
+                {
+                    s.OrigMat = m;
+                    s.SaveToMarker();
+                }
+                // An original material on a replaced font would sample the wrong atlas: re-apply.
                 FontApplier.Apply(s, true);
             }
             catch (Exception e) { Log.ErrorOnce("hook.mat", "material hook failed", e); }
@@ -57,31 +68,43 @@ namespace DuckovFontManager
         public static void SizePostfix(TMP_Text __instance)
         {
             if (!FontManagerCore.Active || FontApplier.Applying) return;
-            var s = TextRegistry.TryGet(__instance);
-            if (s == null) return;
-            s.OrigSize = __instance.fontSize;
-            s.SaveToMarker();
-            FontApplier.Apply(s, true);
+            try
+            {
+                var s = TextRegistry.TryGet(__instance);
+                if (s == null) return;
+                s.OrigSize = __instance.fontSize;
+                s.SaveToMarker();
+                FontApplier.Apply(s, true);
+            }
+            catch (Exception e) { Log.ErrorOnce("hook.size", "fontSize hook failed", e); }
         }
 
         public static void SizeMinPostfix(TMP_Text __instance)
         {
             if (!FontManagerCore.Active || FontApplier.Applying) return;
-            var s = TextRegistry.TryGet(__instance);
-            if (s == null) return;
-            s.OrigMin = __instance.fontSizeMin;
-            s.SaveToMarker();
-            FontApplier.Apply(s, true);
+            try
+            {
+                var s = TextRegistry.TryGet(__instance);
+                if (s == null) return;
+                s.OrigMin = __instance.fontSizeMin;
+                s.SaveToMarker();
+                FontApplier.Apply(s, true);
+            }
+            catch (Exception e) { Log.ErrorOnce("hook.min", "fontSizeMin hook failed", e); }
         }
 
         public static void SizeMaxPostfix(TMP_Text __instance)
         {
             if (!FontManagerCore.Active || FontApplier.Applying) return;
-            var s = TextRegistry.TryGet(__instance);
-            if (s == null) return;
-            s.OrigMax = __instance.fontSizeMax;
-            s.SaveToMarker();
-            FontApplier.Apply(s, true);
+            try
+            {
+                var s = TextRegistry.TryGet(__instance);
+                if (s == null) return;
+                s.OrigMax = __instance.fontSizeMax;
+                s.SaveToMarker();
+                FontApplier.Apply(s, true);
+            }
+            catch (Exception e) { Log.ErrorOnce("hook.max", "fontSizeMax hook failed", e); }
         }
     }
 
@@ -117,7 +140,7 @@ namespace DuckovFontManager
 
         public static void Remove()
         {
-            HarmonyShim.UnpatchAll(HarmonyId);
+            HarmonyShim.UnpatchOwn(HarmonyId);
             HooksActive = false;
             PatchCount = 0;
         }

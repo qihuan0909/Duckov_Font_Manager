@@ -61,6 +61,8 @@ namespace DuckovFontManager
         public int atlasSize = 2048;
         public int applyBatchPerFrame = 300;
         public bool periodicScan = false;
+        /// <summary>Settings panel language: auto (follow the game), zh, en, ja or ko.</summary>
+        public string panelLanguage = "auto";
         /// <summary>Keep the settings panel in the game font so it stays readable whatever font is chosen.</summary>
         public bool safePanelFont = true;
         public bool debugLog = false;

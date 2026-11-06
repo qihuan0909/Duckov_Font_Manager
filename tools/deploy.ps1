@@ -20,11 +20,15 @@ Copy-Item (Join-Path $out "DuckovFontManager.dll") $modDir -Force
 Copy-Item (Join-Path $root "lib\0Harmony.dll") $modDir -Force
 Copy-Item (Join-Path $root "assets\info.ini") $modDir -Force
 Copy-Item (Join-Path $root "assets\preview.png") $modDir -Force
+Copy-Item (Join-Path $root "assets\THIRD-PARTY-NOTICES.txt") $modDir -Force
 
-# Package copy for distribution
+# Package copy for distribution: exactly the shipped files (nothing the game or a user added to the mod folder).
 $release = Join-Path $root "release\DuckovFontManager"
+if (Test-Path $release) { Remove-Item -Recurse -Force $release }
 New-Item -ItemType Directory -Force $release | Out-Null
-Copy-Item (Join-Path $modDir "*") $release -Force
+foreach ($f in "DuckovFontManager.dll", "0Harmony.dll", "info.ini", "preview.png", "THIRD-PARTY-NOTICES.txt") {
+    Copy-Item (Join-Path $modDir $f) $release -Force
+}
 
 if (-not $SkipFonts -and (Test-Path (Join-Path $root "customfont"))) {
     $fontDir = Join-Path $GamePath "ModConfigs\DuckovFontManager\Fonts"

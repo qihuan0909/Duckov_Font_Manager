@@ -34,12 +34,5 @@ namespace DuckovFontManager
                 return FamilyName + " " + StyleName;
             }
         }
-
-        public string SourceLabel => Source switch
-        {
-            FontSource.User => "自定义",
-            FontSource.Mod => "内置",
-            _ => "系统",
-        };
     }
 }

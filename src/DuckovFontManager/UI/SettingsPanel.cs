@@ -8,15 +8,11 @@ using Object = UnityEngine.Object;
 
 namespace DuckovFontManager
 {
-    /// <summary>In-game settings window (F7 or the "字体" tab in the game's settings).</summary>
+    /// <summary>In-game settings window (hotkey, or the "Fonts" tab in the game's settings). Texts come from <see cref="L10n"/>.</summary>
     internal static class SettingsPanel
     {
-        private const string PreviewText =
-            "逃离鸭科夫 Escape from Duckov\n" +
-            "0123456789  ¥12,345  -128  x3\n" +
-            "【任务】撤离点已开启，快跑！The quick brown fox.";
-
         private static GameObject _canvasGo;
+        private static L10n.Lang _builtLanguage;
         private static RectTransform _window;
         private static RectTransform _fontListContent;
         private static TextMeshProUGUI _status;
@@ -58,9 +54,13 @@ namespace DuckovFontManager
         {
             try
             {
-                if (_canvasGo == null) Build();
+                if (_canvasGo == null)
+                {
+                    Build();
+                    _listDirty = true;
+                }
                 _canvasGo.SetActive(true);
-                RefreshFontList();
+                if (_listDirty) RefreshFontList(); // rebuilding ~400 buttons on every open is wasteful
                 RefreshLabels();
                 try { InputManager.DisableInput(_canvasGo); } catch { /* not in a level */ }
             }
@@ -92,6 +92,26 @@ namespace DuckovFontManager
 
         private static void OnListChanged() => _listDirty = true;
 
+        /// <summary>Rebuilds the panel if its language no longer matches (game language or panel setting changed).</summary>
+        public static void RefreshLanguage()
+        {
+            if (_canvasGo == null || _builtLanguage == L10n.Current) return;
+            Rebuild();
+        }
+
+        private static void Rebuild()
+        {
+            bool open = IsOpen;
+            if (_canvasGo != null)
+            {
+                ReleaseInput();
+                Object.Destroy(_canvasGo);
+                _canvasGo = null;
+            }
+            _fontButtons.Clear();
+            if (open) Open();
+        }
+
         public static void Tick()
         {
             if (!IsOpen) return;
@@ -108,6 +128,7 @@ namespace DuckovFontManager
         private static void Build()
         {
             Ui.Font = FontLibrary.FindGameMainFont();
+            _builtLanguage = L10n.Current;
             var cfg = ConfigService.Current;
 
             _canvasGo = new GameObject("DuckovFontManager.Settings");
@@ -148,7 +169,10 @@ namespace DuckovFontManager
             header.sizeDelta = new Vector2(0, 60);
             Ui.Image(header, Ui.Surface);
 
-            var title = Ui.Label(header, "字体管理器  <size=70%><color=#9AA0AA>Duckov Font Manager</color></size>", 28, Ui.TextColor);
+            var titleText = _builtLanguage == L10n.Lang.En
+                ? "Duckov Font Manager"
+                : L10n.T("title") + "  <size=70%><color=#9AA0AA>Duckov Font Manager</color></size>";
+            var title = Ui.Label(header, titleText, 28, Ui.TextColor);
             title.fontStyle = FontStyles.Bold;
             Ui.Stretch(title.rectTransform, 20, 0, 80, 0);
 
@@ -169,7 +193,7 @@ namespace DuckovFontManager
             col.offsetMin = new Vector2(16, 64);
             col.offsetMax = new Vector2(16 + 420, -76);
 
-            var title = Ui.Label(col, "字体列表（点击即时切换）", 22, Ui.Accent);
+            var title = Ui.Label(col, L10n.T("fontList"), 22, Ui.Accent);
             var trt = title.rectTransform;
             trt.anchorMin = new Vector2(0, 1);
             trt.anchorMax = new Vector2(1, 1);
@@ -191,8 +215,8 @@ namespace DuckovFontManager
             h.childControlHeight = true;
             h.childForceExpandWidth = true;
             h.childForceExpandHeight = true;
-            Ui.Button(buttons, "打开字体目录", OpenFontFolder);
-            Ui.Button(buttons, "重新扫描", () => FontLibrary.Rescan());
+            Ui.Button(buttons, L10n.T("openFolder"), OpenFontFolder);
+            Ui.Button(buttons, L10n.T("rescan"), () => FontLibrary.Rescan());
         }
 
         private static void BuildSettingsColumn()
@@ -204,12 +228,12 @@ namespace DuckovFontManager
             var cfg = ConfigService.Current;
 
             // ---- Preview
-            Ui.SectionHeader(c, "预览");
+            Ui.SectionHeader(c, L10n.T("preview"));
             var previewBox = Ui.Rect("PreviewBox", c);
             Ui.Layout(previewBox.gameObject, 210);
             Ui.Image(previewBox, Ui.SurfaceAlt);
             previewBox.gameObject.AddComponent<RectMask2D>();
-            var preview = Ui.Label(previewBox, PreviewText, 30, Ui.TextColor, TextAlignmentOptions.MidlineLeft, true);
+            var preview = Ui.Label(previewBox, L10n.T("previewText"), 30, Ui.TextColor, TextAlignmentOptions.MidlineLeft, true);
             Ui.Stretch(preview.rectTransform, 16, 8, 16, 8);
             preview.gameObject.AddComponent<DfmForceInclude>();
 
@@ -218,43 +242,70 @@ namespace DuckovFontManager
             _languageLine = Ui.Label(c, "", 20, Ui.TextDim);
             Ui.Layout(_languageLine.gameObject, 30);
             var langRow = Ui.HRow(c, 38);
-            Ui.Button(langRow.transform, "当前语言使用所选字体", BindLanguage);
-            Ui.Button(langRow.transform, "清除当前语言绑定", ClearLanguage);
+            Ui.Button(langRow.transform, L10n.T("bindLang"), BindLanguage);
+            Ui.Button(langRow.transform, L10n.T("clearLang"), ClearLanguage);
 
             // ---- Scope
-            Ui.SectionHeader(c, "替换范围");
-            Ui.Toggle(c, "启用字体替换", cfg.enabled, v => Set(() => cfg.enabled = v));
-            Ui.Toggle(c, "替换标题字体（粗体标题）", cfg.replaceTitleFont, v => Set(() => cfg.replaceTitleFont = v));
-            Ui.Toggle(c, "强制覆盖美术字体（像素、数码管、等宽等风格字体）", cfg.forceOverrideArtFonts, v => Set(() => cfg.forceOverrideArtFonts = v));
-            Ui.Toggle(c, "替换其他 Mod 自带的字体", cfg.replaceUnknownFonts, v => Set(() => cfg.replaceUnknownFonts = v));
-            Ui.Toggle(c, "设置面板保持原版字体（选错字体时也能看清）", cfg.safePanelFont, SetSafePanelFont);
+            Ui.SectionHeader(c, L10n.T("scope"));
+            Ui.Toggle(c, L10n.T("enable"), cfg.enabled, v => Set(() => cfg.enabled = v));
+            Ui.Toggle(c, L10n.T("replaceTitle"), cfg.replaceTitleFont, v => Set(() => cfg.replaceTitleFont = v));
+            Ui.Toggle(c, L10n.T("forceArt"), cfg.forceOverrideArtFonts, v => Set(() => cfg.forceOverrideArtFonts = v));
+            Ui.Toggle(c, L10n.T("replaceMods"), cfg.replaceUnknownFonts, v => Set(() => cfg.replaceUnknownFonts = v));
+            Ui.Toggle(c, L10n.T("safePanel"), cfg.safePanelFont, SetSafePanelFont);
 
             // ---- Size
-            Ui.SectionHeader(c, "字号");
-            Ui.Slider(c, "全局字号", 0.5f, 2f, cfg.globalScale, Percent, v => SetDeferred(() => cfg.globalScale = Round2(v)));
-            Ui.Slider(c, "界面文字", 0.5f, 2f, cfg.uiScale, Percent, v => SetDeferred(() => cfg.uiScale = Round2(v)));
-            Ui.Slider(c, "世界文字（伤害飘字等）", 0.5f, 2f, cfg.worldScale, Percent, v => SetDeferred(() => cfg.worldScale = Round2(v)));
-            Ui.Slider(c, "标题文字", 0.5f, 2f, cfg.titleScale, Percent, v => SetDeferred(() => cfg.titleScale = Round2(v)));
-            Ui.Toggle(c, "视觉字号归一化（让新字体看起来和原字体一样大）", cfg.normalizeMetrics, v => Set(() => cfg.normalizeMetrics = v));
+            Ui.SectionHeader(c, L10n.T("size"));
+            Ui.Slider(c, L10n.T("globalSize"), 0.5f, 2f, cfg.globalScale, Percent, v => SetDeferred(() => cfg.globalScale = Round2(v)));
+            Ui.Slider(c, L10n.T("uiSize"), 0.5f, 2f, cfg.uiScale, Percent, v => SetDeferred(() => cfg.uiScale = Round2(v)));
+            Ui.Slider(c, L10n.T("worldSize"), 0.5f, 2f, cfg.worldScale, Percent, v => SetDeferred(() => cfg.worldScale = Round2(v)));
+            Ui.Slider(c, L10n.T("titleSize"), 0.5f, 2f, cfg.titleScale, Percent, v => SetDeferred(() => cfg.titleScale = Round2(v)));
+            Ui.Toggle(c, L10n.T("normalize"), cfg.normalizeMetrics, v => Set(() => cfg.normalizeMetrics = v));
 
             // ---- Layout tweaks
-            Ui.SectionHeader(c, "排版微调（仅对已替换的文字生效）");
-            Ui.Slider(c, "垂直偏移（正值向上）", -0.3f, 0.3f, cfg.verticalOffset, v => v.ToString("+0.00;-0.00;0") + " em",
+            Ui.SectionHeader(c, L10n.T("layout"));
+            Ui.Slider(c, L10n.T("vOffset"), -0.3f, 0.3f, cfg.verticalOffset, v => v.ToString("+0.00;-0.00;0") + " em",
                 v => SetDeferred(() => cfg.verticalOffset = Round2(v)));
-            Ui.Slider(c, "行距调整", -40f, 40f, cfg.lineSpacingDelta, v => v.ToString("+0;-0;0"),
+            Ui.Slider(c, L10n.T("lineSpacing"), -40f, 40f, cfg.lineSpacingDelta, v => v.ToString("+0;-0;0"),
                 v => SetDeferred(() => cfg.lineSpacingDelta = Mathf.Round(v)), true);
 
             // ---- Advanced
-            Ui.SectionHeader(c, "高级");
-            Ui.Toggle(c, "预热常用字（减少首次显示卡顿）", cfg.prewarm, v => Set(() => cfg.prewarm = v));
-            Ui.Toggle(c, "在列表中显示系统字体", cfg.includeSystemFonts, v => Set(() => cfg.includeSystemFonts = v));
-            Ui.Toggle(c, "自动监视字体目录（放入新字体立即可用）", cfg.watchFontFolder, v => Set(() => cfg.watchFontFolder = v));
-            Ui.Toggle(c, "定期扫描（排查个别文字未替换时开启）", cfg.periodicScan, v => Set(() => cfg.periodicScan = v));
-            Ui.Toggle(c, "调试日志", cfg.debugLog, v => Set(() => cfg.debugLog = v));
-            var hint = Ui.Label(c,
-                $"快捷键：{cfg.togglePanelKey} 打开/关闭本面板。更多选项（排除规则、按字体分类、图集参数）见 config.json。",
-                18, Ui.TextDim, TextAlignmentOptions.TopLeft, true);
+            Ui.SectionHeader(c, L10n.T("advanced"));
+            BuildPanelLanguageRow(c);
+            Ui.Toggle(c, L10n.T("prewarm"), cfg.prewarm, v => Set(() => cfg.prewarm = v));
+            Ui.Toggle(c, L10n.T("sysFonts"), cfg.includeSystemFonts, v => Set(() => cfg.includeSystemFonts = v));
+            Ui.Toggle(c, L10n.T("watch"), cfg.watchFontFolder, v => Set(() => cfg.watchFontFolder = v));
+            Ui.Toggle(c, L10n.T("periodic"), cfg.periodicScan, v => Set(() => cfg.periodicScan = v));
+            Ui.Toggle(c, L10n.T("debug"), cfg.debugLog, v => Set(() => cfg.debugLog = v));
+            var hint = Ui.Label(c, L10n.F("hint", cfg.togglePanelKey), 18, Ui.TextDim, TextAlignmentOptions.TopLeft, true);
             Ui.Layout(hint.gameObject, 52);
+        }
+
+        private static void BuildPanelLanguageRow(Transform parent)
+        {
+            var row = Ui.HRow(parent, 38);
+            var label = Ui.Label(row.transform, L10n.T("panelLang"), 20, Ui.TextColor);
+            Ui.Layout(label.gameObject, -1, 150, 0);
+            // Language names are shown in their own language so everyone can find theirs.
+            var names = new[] { L10n.T("auto"), "中文", "English", "日本語", "한국어" };
+            var current = ConfigService.Current.panelLanguage;
+            for (int i = 0; i < L10n.Codes.Length; i++)
+            {
+                var code = L10n.Codes[i];
+                var btn = Ui.Button(row.transform, names[i], () => SetPanelLanguage(code), -1, 38, 19);
+                if (code == current)
+                {
+                    Ui.SetButtonColors(btn, Ui.Accent, Ui.Accent);
+                    var t = btn.GetComponentInChildren<TextMeshProUGUI>(true);
+                    if (t != null) t.color = Ui.TextDark;
+                }
+            }
+        }
+
+        private static void SetPanelLanguage(string code)
+        {
+            ConfigService.Current.panelLanguage = code;
+            Rebuild(); // also when the resolved language is unchanged, to update the highlighted button
+            ConfigService.NotifyChanged();
         }
 
         private static void BuildFooter()
@@ -269,9 +320,9 @@ namespace DuckovFontManager
             _status = Ui.Label(footer, "", 18, Ui.TextDim);
             Ui.Stretch(_status.rectTransform, 20, 0, 330, 0);
 
-            var reset = Ui.Button(footer, "恢复默认", ResetDefaults, 150, 40);
+            var reset = Ui.Button(footer, L10n.T("reset"), ResetDefaults, 150, 40);
             Place(reset, -180);
-            var close = Ui.Button(footer, "关闭", Close, 150, 40);
+            var close = Ui.Button(footer, L10n.T("close"), Close, 150, 40);
             Place(close, -16);
         }
 
@@ -294,7 +345,17 @@ namespace DuckovFontManager
                 Object.Destroy(_fontListContent.GetChild(i).gameObject);
             _fontButtons.Clear();
 
-            AddFontButton("", "游戏原版字体", null);
+            AddFontButton("", L10n.T("gameFont"), null);
+            bool hasCustom = false;
+            foreach (var e in FontLibrary.Entries)
+                if (e.Source != FontSource.System) { hasCustom = true; break; }
+            if (!hasCustom)
+            {
+                // Tell new users where their fonts go (also when system fonts are listed below).
+                var empty = Ui.Label(_fontListContent, L10n.T("emptyList"), 18, Ui.TextDim, TextAlignmentOptions.TopLeft, true);
+                Ui.Layout(empty.gameObject, 60);
+            }
+
             FontSource? lastSource = null;
             foreach (var e in FontLibrary.Entries)
             {
@@ -303,19 +364,13 @@ namespace DuckovFontManager
                     lastSource = e.Source;
                     var header = Ui.Label(_fontListContent, e.Source switch
                     {
-                        FontSource.User => "自定义字体（ModConfigs/DuckovFontManager/Fonts）",
-                        FontSource.Mod => "Mod 内置字体",
-                        _ => "系统字体",
+                        FontSource.User => L10n.T("hdrUser"),
+                        FontSource.Mod => L10n.T("hdrMod"),
+                        _ => L10n.T("hdrSys"),
                     }, 17, Ui.TextDim);
                     Ui.Layout(header.gameObject, 30);
                 }
                 AddFontButton(e.Key, e.DisplayName, e);
-            }
-            if (FontLibrary.Entries.Count == 0)
-            {
-                var empty = Ui.Label(_fontListContent, "还没有自定义字体。\n点击“打开字体目录”，放入 .ttf / .otf 文件即可。", 18, Ui.TextDim,
-                    TextAlignmentOptions.TopLeft, true);
-                Ui.Layout(empty.gameObject, 60);
             }
             UpdateFontSelection();
         }
@@ -323,7 +378,7 @@ namespace DuckovFontManager
         private static void AddFontButton(string key, string name, FontEntry entry)
         {
             string text = name;
-            if (entry != null && entry.Failed) text += "  <color=#E06A5C>（无法加载）</color>";
+            if (entry != null && entry.Failed) text += " <color=#E06A5C>" + L10n.T("cantLoad") + "</color>";
             var btn = Ui.Button(_fontListContent, text, () => SelectFont(key), -1, 38, 19);
             var label = btn.GetComponentInChildren<TextMeshProUGUI>(true);
             label.alignment = TextAlignmentOptions.MidlineLeft;
@@ -399,15 +454,7 @@ namespace DuckovFontManager
         private static void ResetDefaults()
         {
             ConfigService.ResetToDefaults();
-            // Rebuild so every control shows the default values.
-            bool open = IsOpen;
-            if (_canvasGo != null)
-            {
-                ReleaseInput();
-                Object.Destroy(_canvasGo);
-                _canvasGo = null;
-            }
-            if (open) Open();
+            Rebuild(); // so every control shows the default values
         }
 
         private static void OpenFontFolder()
@@ -425,7 +472,8 @@ namespace DuckovFontManager
             if (_effective != null)
             {
                 var key = RuleEngine.EffectivePrimaryKey();
-                _effective.text = "当前生效字体：<color=#F5C242>" + FontName(key) + "</color>" + (cfg.enabled ? "" : "  <color=#E06A5C>（替换已关闭）</color>");
+                _effective.text = L10n.F("effective", "<color=#F5C242>" + FontName(key) + "</color>")
+                                  + (cfg.enabled ? "" : " <color=#E06A5C>" + L10n.T("disabled") + "</color>");
             }
             if (_languageLine != null)
             {
@@ -433,24 +481,24 @@ namespace DuckovFontManager
                 string display;
                 try { display = LocalizationManager.CurrentLanguageDisplayName; } catch { display = lang; }
                 _languageLine.text = cfg.languageFonts.TryGetValue(lang, out var bound)
-                    ? $"当前语言：{display}　已绑定字体：<color=#F5C242>{FontName(bound)}</color>"
-                    : $"当前语言：{display}　未绑定（使用上面列表中选中的字体）";
+                    ? L10n.F("langBound", display, "<color=#F5C242>" + FontName(bound) + "</color>")
+                    : L10n.F("langUnbound", display);
             }
             if (_status != null)
             {
-                string prewarm = Prewarmer.Busy ? $" · 预热中 {Prewarmer.Progress:P0}" : "";
-                string mode = PatchService.HooksActive ? HarmonyShim.Description : "扫描模式";
-                _status.text = $"已处理文本 {TextRegistry.Count} · 字体资源 {FontLibrary.AssetCount} · 补丁 {PatchService.PatchCount}（{mode}）{prewarm}";
+                string prewarm = Prewarmer.Busy ? L10n.F("prewarming", Prewarmer.Progress.ToString("P0")) : "";
+                string mode = PatchService.HooksActive ? HarmonyShim.Description : L10n.T("scanMode");
+                _status.text = L10n.F("status", TextRegistry.Count, FontLibrary.AssetCount, PatchService.PatchCount, mode) + prewarm;
             }
             UpdateFontSelection();
         }
 
         private static string FontName(string key)
         {
-            if (string.IsNullOrEmpty(key)) return "游戏原版字体";
+            if (string.IsNullOrEmpty(key)) return L10n.T("gameFont");
             var e = FontLibrary.GetEntry(key);
-            if (e == null) return key + "（文件不存在）";
-            return e.Failed ? e.DisplayName + "（无法加载）" : e.DisplayName;
+            if (e == null) return key + L10n.T("missingFile");
+            return e.Failed ? e.DisplayName + L10n.T("cantLoad") : e.DisplayName;
         }
 
         private static string CurrentLanguage()

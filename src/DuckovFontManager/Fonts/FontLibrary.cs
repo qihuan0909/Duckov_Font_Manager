@@ -197,7 +197,7 @@ namespace DuckovFontManager
                 if (fa == null)
                 {
                     e.Failed = true;
-                    e.Error = "Unity 无法读取该字体文件";
+                    e.Error = "Unity could not load this font file";
                     Object.Destroy(font);
                     Log.Warn($"Could not load font face: {e.FilePath}");
                     return null;
@@ -219,7 +219,9 @@ namespace DuckovFontManager
                 _assets[key] = fa;
                 _fonts[key] = font;
                 _ourAssetIds.Add(fa.GetInstanceID());
-                Log.Info($"Created font asset '{fa.name}' from {e.FilePath}");
+                int blank = MarkBlankGlyphs(fa, font, cfg.samplingPointSize);
+                Log.Info($"Created font asset '{fa.name}' from {e.FilePath}" +
+                         (blank > 0 ? $" ({blank} characters have empty glyphs and use the game font)" : ""));
 
                 if (cfg.prewarm) Prewarmer.Enqueue(fa);
                 return fa;
@@ -232,6 +234,88 @@ namespace DuckovFontManager
                 if (font != null) Object.Destroy(font);
                 return null;
             }
+        }
+
+        // ------------------------------------------------------------------ empty glyphs
+
+        private static readonly System.Reflection.FieldInfo MissingUnicodesField =
+            typeof(TMP_FontAsset).GetField("m_MissingUnicodesFromFontFile",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+
+        /// <summary>TMP's own "not in this font" set: codepoints in it are looked up in the fallback fonts.</summary>
+        public static HashSet<uint> GetMissingSet(TMP_FontAsset fa)
+        {
+            try { return fa != null ? MissingUnicodesField?.GetValue(fa) as HashSet<uint> : null; }
+            catch { return null; }
+        }
+
+        /// <summary>
+        /// Many decorative fonts map characters they don't design (often digits!) to an empty glyph. TMP would
+        /// render those as nothing instead of using the fallback font, so numbers vanish from the HUD.
+        /// Marks such visible characters as missing so the game font is used for them instead.
+        /// </summary>
+        private static int MarkBlankGlyphs(TMP_FontAsset fa, Font font, int pointSize)
+        {
+            var missing = GetMissingSet(fa);
+            if (missing == null) return 0;
+            int count = 0;
+            try
+            {
+                if (FontEngine.LoadFontFace(font, pointSize) != FontEngineError.Success) return 0;
+                foreach (var c in BlankCheckCandidates())
+                {
+                    if (!IsVisibleChar(c) || missing.Contains(c)) continue;
+                    if (FontEngine.TryGetGlyphWithUnicodeValue(c, GlyphLoadFlags.LOAD_NO_BITMAP, out var g)
+                        && (g.metrics.width <= 0f || g.metrics.height <= 0f))
+                    {
+                        missing.Add(c);
+                        // Already added before this check (e.g. after a language change): drop it again.
+                        if (fa.characterLookupTable != null && fa.characterLookupTable.TryGetValue(c, out var existing))
+                        {
+                            fa.characterLookupTable.Remove(c);
+                            fa.characterTable?.Remove(existing);
+                        }
+                        count++;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.ErrorOnce("blank", "Empty-glyph check failed", ex);
+            }
+            return count;
+        }
+
+        /// <summary>Re-checks all live assets (e.g. the language and therefore the character set changed).</summary>
+        public static void RecheckBlankGlyphs()
+        {
+            int size = ConfigService.Current.samplingPointSize;
+            foreach (var kv in _assets)
+                if (kv.Value != null && _fonts.TryGetValue(kv.Key, out var f) && f != null)
+                    MarkBlankGlyphs(kv.Value, f, size);
+        }
+
+        private static IEnumerable<uint> BlankCheckCandidates()
+        {
+            for (uint c = 0x21; c <= 0x7E; c++) yield return c;        // ASCII
+            for (uint c = 0xA1; c <= 0xFF; c++) yield return c;        // Latin-1
+            for (uint c = 0x2010; c <= 0x2027; c++) yield return c;    // dashes, quotes, ellipsis
+            for (uint c = 0x3001; c <= 0x303F; c++) yield return c;    // CJK punctuation
+            for (uint c = 0xFF01; c <= 0xFF5E; c++) yield return c;    // full-width forms
+            foreach (var ch in Prewarmer.GetCharset()) yield return ch; // everything the game's text uses
+        }
+
+        private static bool IsVisibleChar(uint c)
+        {
+            if (c > 0xFFFF) return false;
+            var ch = (char)c;
+            if (char.IsWhiteSpace(ch) || char.IsControl(ch) || char.IsSurrogate(ch)) return false;
+            var cat = char.GetUnicodeCategory(ch);
+            // Marks and format characters (combining accents, ZWJ...) are legitimately empty.
+            return cat != System.Globalization.UnicodeCategory.NonSpacingMark
+                && cat != System.Globalization.UnicodeCategory.EnclosingMark
+                && cat != System.Globalization.UnicodeCategory.Format
+                && cat != System.Globalization.UnicodeCategory.SpacingCombiningMark;
         }
 
         private static string CacheDir => Path.Combine(Paths.ConfigDir, "Cache");
@@ -288,9 +372,12 @@ namespace DuckovFontManager
             }
         }
 
-        /// <summary>Destroys invalidated objects. Call once no registered text references them.</summary>
+        public static bool HasPendingDestroy => _pendingDestroy.Count > 0;
+
+        /// <summary>Destroys invalidated objects. Call once no text references them any more.</summary>
         public static void FlushPendingDestroy()
         {
+            MaterialMapper.FlushPending();
             if (_pendingDestroy.Count == 0) return;
             foreach (var o in _pendingDestroy)
                 if (o != null) Object.Destroy(o);

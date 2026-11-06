@@ -104,8 +104,9 @@ namespace DuckovFontManager
                 var path = Paths.ConfigFile;
                 var tmp = path + ".tmp";
                 File.WriteAllText(tmp, JsonConvert.SerializeObject(Current, JsonSettings));
-                if (File.Exists(path)) File.Delete(path);
-                File.Move(tmp, path);
+                // Replace atomically so a crash mid-save never leaves the user without a config.
+                if (File.Exists(path)) File.Replace(tmp, path, null);
+                else File.Move(tmp, path);
             }
             catch (Exception e)
             {
@@ -134,6 +135,8 @@ namespace DuckovFontManager
             c.excludedPaths ??= new List<string>();
             c.togglePanelKey ??= "F8";
             c.cycleFontKey ??= "";
+            c.panelLanguage = (c.panelLanguage ?? "auto").Trim().ToLowerInvariant();
+            if (Array.IndexOf(L10n.Codes, c.panelLanguage) < 0) c.panelLanguage = "auto";
 
             c.globalScale = Clamp(c.globalScale, 0.3f, 3f, 1f);
             c.uiScale = Clamp(c.uiScale, 0.3f, 3f, 1f);

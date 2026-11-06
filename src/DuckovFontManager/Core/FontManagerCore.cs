@@ -134,6 +134,7 @@ namespace DuckovFontManager
                 {
                     _nextPrune = now + 30f;
                     TextRegistry.Prune();
+                    MaterialMapper.Prune(TextRegistry.AppliedMaterialIds());
                 }
             }
             catch (Exception e)
@@ -175,7 +176,12 @@ namespace DuckovFontManager
             {
                 Log.Verbose($"Re-applied {_pass.Count} texts (version {Version}).");
                 _pass = null;
-                FontLibrary.FlushPendingDestroy();
+                if (FontLibrary.HasPendingDestroy)
+                {
+                    // Move unregistered copies off the old font assets before destroying them.
+                    TextRegistry.AdoptStragglers(true);
+                    FontLibrary.FlushPendingDestroy();
+                }
             }
         }
 
@@ -198,12 +204,17 @@ namespace DuckovFontManager
             if (cfg.watchFontFolder && !FontFolderWatcher.Running) FontFolderWatcher.Start();
             else if (!cfg.watchFontFolder && FontFolderWatcher.Running) FontFolderWatcher.Stop();
 
+            SettingsPanel.RefreshLanguage(); // panelLanguage may have changed
+            OptionsEntryInjector.RefreshLabels();
             Bump();
         }
 
         private static void OnLanguageChanged(SystemLanguage language)
         {
             Log.Info($"Language changed to {language}; re-applying fonts.");
+            FontLibrary.RecheckBlankGlyphs(); // the new language uses other characters
+            OptionsEntryInjector.RefreshLabels();
+            SettingsPanel.RefreshLanguage();
             MetricsNormalizer.Clear();
             Bump();
             if (ConfigService.Current.prewarm)

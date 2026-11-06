@@ -36,7 +36,8 @@ namespace DuckovFontManager
             foreach (var p in ConfigService.Current.excludedPaths)
             {
                 if (string.IsNullOrWhiteSpace(p)) continue;
-                try { _pathRegexes.Add(new Regex(p, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)); }
+                // Timeout: a pathological pattern in the config must not freeze the game.
+                try { _pathRegexes.Add(new Regex(p, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20))); }
                 catch (Exception e) { Log.Warn($"Invalid excludedPaths regex '{p}': {e.Message}"); }
             }
         }
@@ -80,7 +81,10 @@ namespace DuckovFontManager
             {
                 var path = HierarchyPath(t.transform);
                 foreach (var r in _pathRegexes)
-                    if (r.IsMatch(path)) return true;
+                {
+                    try { if (r.IsMatch(path)) return true; }
+                    catch (RegexMatchTimeoutException) { Log.ErrorOnce("regex:" + r, $"excludedPaths pattern '{r}' timed out", null); }
+                }
             }
             return false;
         }

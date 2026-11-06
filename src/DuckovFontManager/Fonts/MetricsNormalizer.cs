@@ -66,6 +66,9 @@ namespace DuckovFontManager
                 if (!table.TryGetValue(unicode, out var ch))
                 {
                     if (!allowAdd || fa.atlasPopulationMode != AtlasPopulationMode.Dynamic) return 0f;
+                    var missing = FontLibrary.GetMissingSet(fa);
+                    if (missing != null && missing.Contains(unicode)) return 0f; // empty glyph
+
                     if (!fa.TryAddCharacters(new[] { unicode })) return 0f;
                     if (!fa.characterLookupTable.TryGetValue(unicode, out ch)) return 0f;
                 }

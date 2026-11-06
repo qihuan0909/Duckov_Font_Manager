@@ -21,6 +21,8 @@ namespace DuckovFontManager
 
         private static readonly Dictionary<long, Info> _byKey = new Dictionary<long, Info>();
         private static readonly Dictionary<int, Info> _byMaterial = new Dictionary<int, Info>();
+        // Materials of invalidated fonts: still known (origin lookup) until destroyed with their font.
+        private static readonly List<Info> _pending = new List<Info>();
 
         public static bool IsOurs(Material m) => m != null && _byMaterial.ContainsKey(m.GetInstanceID());
 
@@ -62,22 +64,49 @@ namespace DuckovFontManager
             return m;
         }
 
-        /// <summary>Forget (and schedule destruction of) every material built for a font asset.</summary>
+        /// <summary>Stops handing out materials for a font; they are destroyed by <see cref="FlushPending"/>.</summary>
         public static void ForgetFont(TMP_FontAsset target)
         {
             foreach (var kv in _byKey.Where(kv => kv.Value.Target == target).ToList())
             {
                 _byKey.Remove(kv.Key);
-                if (kv.Value.Material != null)
+                _pending.Add(kv.Value);
+            }
+        }
+
+        public static void FlushPending()
+        {
+            foreach (var info in _pending)
+            {
+                if (info.Material == null) continue;
+                _byMaterial.Remove(info.Material.GetInstanceID());
+                Object.Destroy(info.Material);
+            }
+            _pending.Clear();
+        }
+
+        /// <summary>
+        /// Destroys materials whose source material no longer exists (e.g. per-text material instances of
+        /// destroyed texts) and that no live text uses, so long sessions don't accumulate materials.
+        /// </summary>
+        public static void Prune(HashSet<int> inUse)
+        {
+            foreach (var kv in _byKey.Where(kv => kv.Value.Source == null).ToList())
+            {
+                var m = kv.Value.Material;
+                if (m != null && inUse.Contains(m.GetInstanceID())) continue;
+                _byKey.Remove(kv.Key);
+                if (m != null)
                 {
-                    _byMaterial.Remove(kv.Value.Material.GetInstanceID());
-                    Object.Destroy(kv.Value.Material);
+                    _byMaterial.Remove(m.GetInstanceID());
+                    Object.Destroy(m);
                 }
             }
         }
 
         public static void DestroyAll()
         {
+            FlushPending();
             foreach (var info in _byKey.Values)
                 if (info.Material != null) Object.Destroy(info.Material);
             _byKey.Clear();
