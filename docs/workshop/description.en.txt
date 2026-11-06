@@ -1,0 +1,48 @@
+[h1]Duckov Font Manager[/h1]
+
+[hr][/hr]
+
+[h2]Font Manager[/h2]
+Replace the game's fonts with any font you like, with extra options to adjust font size, spacing and more. All settings apply instantly in game, no restart needed.
+
+[h2]Features[/h2]
+[list]
+[*][b]Global font replacement[/b]: main menu, settings, stash, HUD, dialogue, damage numbers and other game text are all replaced. Text from other mods can be replaced too.
+[*][b]Original effects preserved[/b]: outlines, shadows and other effects on headings are carried over to the new font instead of turning into plain text.
+[*][b]Automatic fallback for missing characters[/b]: characters the new font doesn't have (e.g. Chinese in a Latin-only font) are shown with the game's original font, so you never get boxes. Decorative fonts that map digits to empty glyphs are handled too, so numbers don't disappear.
+[*][b]Font size[/b]: adjust the overall size, or UI text, world text (damage numbers etc.) and headings separately. Optional "Match visual size" makes the new font look as large as the original.
+[*][b]Instant hot switching[/b]: click a font in the list and it applies immediately. You can bind a different font to each game language and it switches automatically with the language. New fonts dropped into the font folder appear in the list automatically.
+[*][b]Stylised fonts kept by default[/b]: pixel / 7-segment style fonts such as the clock and countdowns are not replaced by default, keeping the original art style. Tick "Force-replace stylised fonts" if you want everything replaced.
+[*][b]In-game settings panel[/b]: press [b]F8[/b], or click the "Fonts" tab in the game's Settings screen. The panel is available in 中文, English, 日本語 and 한국어 and follows the game language by default.
+[/list]
+
+[h2]How to use[/h2]
+[olist]
+[*]Subscribe to this mod and enable it under [b]Mods[/b] in the game's main menu.
+[*]Put font files (.ttf / .otf / .ttc) into: [b]<game folder>/ModConfigs/DuckovFontManager/Fonts/[/b]
+(you can also click "Open font folder" in the panel)
+[*]Press [b]F8[/b] to open the panel and click a font in the list on the left. Fonts installed on your system are listed as well.
+[/olist]
+
+[h2]Notes[/h2]
+[list]
+[*][b]This mod does not include any fonts.[/b] Please provide your own font files and respect their licences.
+[*]Loading a large CJK font for the first time may cause a short hitch; common characters are then pre-rendered gradually in the background.
+[*]Untick the mod under Mods to disable it: all text is restored immediately and your saves are not affected.
+[*]Settings are stored in <game folder>/ModConfigs/DuckovFontManager/config.json, where advanced options such as exclusion rules and font categories can be edited.
+[/list]
+
+[h2]Source code[/h2]
+This project is open source under the Apache-2.0 licence: [url=https://github.com/qihuan0909/Duckov_Font_Manager]https://github.com/qihuan0909/Duckov_Font_Manager[/url]
+
+
+[h2]Changelog[/h2]
+
+2026/11/06:
+1. First release
+
+
+[quote]
+[b]A pure wish-fulfilment project, developed together with Opus 5.5. It should be fine... probably?[/b]
+(Making this whole mod only used 20% of my weekly Pro quota. I owe A\ so much \😭/)
+[/quote]
